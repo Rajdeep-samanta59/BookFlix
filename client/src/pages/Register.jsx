@@ -8,6 +8,7 @@ const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('user');
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -19,7 +20,7 @@ const Register = () => {
         name,
         email,
         password,
-        role: 'user', // Default role
+        role,
       });
 
       // Automatically login after registration
@@ -56,6 +57,17 @@ const Register = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700">Role</label>
+            <select
+              className="w-full p-2 border border-gray-300 rounded mt-1"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
           </div>
           <div className="mb-6">
             <label className="block text-gray-700">Password</label>
