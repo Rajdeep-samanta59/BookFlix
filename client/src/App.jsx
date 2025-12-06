@@ -9,6 +9,7 @@ import Reports from './pages/Reports';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/reports" element={<Reports />} />
           </Route>
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
     </AuthProvider>
