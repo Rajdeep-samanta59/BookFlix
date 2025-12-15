@@ -29,6 +29,7 @@ const Transactions = () => {
 
   // Return State
   const [returnData, setReturnData] = useState({ transactionId: '', actualReturnDate: new Date().toISOString().split('T')[0] });
+  const [processingReturn, setProcessingReturn] = useState(location.state?.processingReturn || null);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -125,9 +126,15 @@ const Transactions = () => {
 
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const finalMemberId = issueData.memberId || user._id;
+      if (!finalMemberId) {
+        toast.error('Member ID is missing. Please reload.');
+        return;
+      }
+
       await axios.post('http://localhost:5000/api/transactions', {
         bookId: issueData.bookId,
-        memberId: issueData.memberId,
+        memberId: finalMemberId,
         issueDate: issueData.issueDate,
         returnDate: issueData.returnDate,
         remarks: issueData.remarks
@@ -141,19 +148,55 @@ const Transactions = () => {
     }
   };
 
-  const handleReturn = async (e) => {
+  const handleReturn = (e) => {
     e.preventDefault();
+    const t = transactions.find(tr => tr._id === returnData.transactionId);
+    if (!t) return;
+
+    const returnInfo = {
+      transactionId: returnData.transactionId,
+      actualReturnDate: returnData.actualReturnDate,
+      finePaid: false,
+      remarks: '',
+      transaction: t // store full object for display
+    };
+
+    setProcessingReturn(returnInfo);
+    setActiveTab('fine');
+    navigate('/transactions?tab=fine', { state: { processingReturn: returnInfo } });
+  };
+
+  const finalizeReturn = async (e) => {
+    e.preventDefault();
+    
+    const t = processingReturn.transaction;
+    const issue = new Date(t.returnDate);
+    const actual = new Date(processingReturn.actualReturnDate);
+    const diffTime = actual - issue;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const fine = diffDays > 0 ? diffDays * 10 : 0;
+    
+    if (fine > 0 && !processingReturn.finePaid) {
+      toast.error('Fine is applicable. Please collect fine and check "Fine Paid".');
+      return;
+    }
+
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const res = await axios.put(`http://localhost:5000/api/transactions/${returnData.transactionId}/return`, { actualReturnDate: returnData.actualReturnDate }, config);
+      const res = await axios.put(`http://localhost:5000/api/transactions/${processingReturn.transactionId}/return`, { 
+        actualReturnDate: processingReturn.actualReturnDate,
+        finePaid: processingReturn.finePaid,
+        remarks: processingReturn.remarks
+      }, config);
       
       if (res.data.fine > 0) {
-        toast('Book returned. Fine: ' + res.data.fine + '. Redirecting to Pay Fine...', { icon: '⚠️' });
+        toast('Book returned. Fine: ' + res.data.fine, { icon: '⚠️' });
       } else {
         toast.success('Book returned successfully.');
       }
-      setActiveTab('fine');
-      navigate('/transactions?tab=fine');
+      setProcessingReturn(null); // Clear processing state
+      setActiveTab('availability'); // Or stay on fine/report? Let's go to availability as "completed"
+      navigate('/transactions?tab=availability');
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error returning book');
@@ -271,7 +314,7 @@ const Transactions = () => {
                 const t = transactions.find(tr => tr._id === tId);
                 setReturnData({ 
                   transactionId: tId, 
-                  actualReturnDate: t ? new Date(t.returnDate).toISOString().split('T')[0] : '' 
+                  actualReturnDate: t ? new Date(t.returnDate).toISOString().split('T')[0] : ''
                 });
               }} 
               required
@@ -315,7 +358,11 @@ const Transactions = () => {
                   />
                   <p className="text-xs text-gray-500 mt-1"> </p>
                 </div>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors">
+
+                <button 
+                  type="submit" 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
+                >
                   Confirm Return
                 </button>
               </>
@@ -325,28 +372,113 @@ const Transactions = () => {
       )}
 
       {activeTab === 'fine' && (
-        <table className="min-w-full bg-white border">
-          <thead>
-            <tr>
-              <th className="py-2 px-4 border-b">Member</th>
-              <th className="py-2 px-4 border-b">Book</th>
-              <th className="py-2 px-4 border-b">Fine Amount</th>
-              <th className="py-2 px-4 border-b">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.filter(t => t.fine > 0 && !t.finePaid).map(t => (
-              <tr key={t._id}>
-                <td className="py-2 px-4 border-b">{t.memberId?.name}</td>
-                <td className="py-2 px-4 border-b">{t.bookId?.title}</td>
-                <td className="py-2 px-4 border-b">{t.fine}</td>
-                <td className="py-2 px-4 border-b">
-                  <button className="bg-green-500 text-white px-2 py-1 rounded" onClick={() => handlePayFine(t._id)}>Pay</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="bg-white p-6 rounded shadow">
+          {processingReturn ? (
+             <form onSubmit={finalizeReturn} className="max-w-lg">
+                <h3 className="text-xl font-bold mb-4">Complete Return Transaction</h3>
+                <div className="mb-4">
+                  <label className="block mb-1 text-sm text-gray-600">Name of Book</label>
+                  <input className="w-full p-2 border bg-gray-100 rounded text-gray-700" value={processingReturn.transaction?.bookId?.title || ''} readOnly />
+                </div>
+                <div className="mb-4">
+                  <label className="block mb-1 text-sm text-gray-600">Author Name</label>
+                  <input className="w-full p-2 border bg-gray-100 rounded text-gray-700" value={processingReturn.transaction?.bookId?.authorOrDirector || ''} readOnly />
+                </div>
+                <div className="mb-4">
+                  <label className="block mb-1 text-sm text-gray-600">Serial No</label>
+                  <input className="w-full p-2 border bg-gray-100 rounded text-gray-700" value={processingReturn.transaction?.bookId?.serialNumber || ''} readOnly />
+                </div>
+                <div className="mb-4">
+                   <label className="block mb-1 text-sm text-gray-600">Fine Paid</label>
+                   {(() => {
+                      const t = processingReturn.transaction;
+                      const issue = new Date(t.returnDate);
+                      const actual = new Date(processingReturn.actualReturnDate);
+                      const diffTime = actual - issue;
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      const fine = diffDays > 0 ? diffDays * 10 : 0;
+                      
+                      return fine > 0 ? (
+                        <div className="flex flex-col bg-red-50 p-3 rounded border border-red-200">
+                          <p className="text-red-800 text-sm font-bold mb-2">
+                            For a pending fine,complete the return book transaction.
+                          </p>
+                          <div className="flex items-center">
+                            <input 
+                              type="checkbox" 
+                              id="finePaid" 
+                              className="mr-2 h-4 w-4" 
+                              checked={processingReturn.finePaid} 
+                              onChange={e => setProcessingReturn({...processingReturn, finePaid: e.target.checked})} 
+                            />
+                            <label htmlFor="finePaid" className="text-red-800 font-semibold select-none">
+                              Yes, Fine Paid (₹{fine})
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <input className="w-full p-2 border bg-gray-100 rounded text-gray-500 italic" value="No Fine Applicable" readOnly />
+                      );
+                   })()}
+                </div>
+                <div className="mb-6">
+                  <label className="block mb-1 text-sm text-gray-600">Remarks</label>
+                  <textarea 
+                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" 
+                    rows="3"
+                    value={processingReturn.remarks} 
+                    onChange={e => setProcessingReturn({...processingReturn, remarks: e.target.value})}
+                  />
+                </div>
+                {(() => {
+                   const t = processingReturn.transaction;
+                   const issue = new Date(t.returnDate);
+                   const actual = new Date(processingReturn.actualReturnDate);
+                   const diffTime = actual - issue;
+                   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                   const fine = diffDays > 0 ? diffDays * 10 : 0;
+                   return (
+                     <button type="submit" className={`w-full text-white font-bold py-2 px-4 rounded transition-colors ${fine > 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>
+                       {fine > 0 ? `Confirm Payment (₹${fine}) & Return` : 'Confirm Return'}
+                     </button>
+                   );
+                })()}
+                <button type="button" onClick={() => { setProcessingReturn(null); setActiveTab('return'); navigate('/transactions?tab=return'); }} className="w-full mt-2 bg-gray-300 hover:bg-gray-400 text-black font-semibold py-2 px-4 rounded transition-colors">
+                  Cancel
+                </button>
+             </form>
+          ) : (
+             transactions.filter(t => t.fine > 0 && !t.finePaid).length > 0 ? (
+              <table className="min-w-full bg-white border">
+                <thead>
+                  <tr>
+                    <th className="py-2 px-4 border-b">Member</th>
+                    <th className="py-2 px-4 border-b">Book</th>
+                    <th className="py-2 px-4 border-b">Fine Amount</th>
+                    <th className="py-2 px-4 border-b">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.filter(t => t.fine > 0 && !t.finePaid).map(t => (
+                    <tr key={t._id}>
+                      <td className="py-2 px-4 border-b">{t.memberId?.name}</td>
+                      <td className="py-2 px-4 border-b">{t.bookId?.title}</td>
+                      <td className="py-2 px-4 border-b">₹{t.fine}</td>
+                      <td className="py-2 px-4 border-b">
+                        <button className="bg-green-500 text-white px-2 py-1 rounded" onClick={() => handlePayFine(t._id)}>Pay</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+             ) : (
+                <div className="text-center py-10 text-gray-500">
+                  <p className="text-xl">No pending fines found.</p>
+                  <p className="text-sm">Fines are now collected at the time of return.</p>
+                </div>
+             )
+          )}
+        </div>
       )}
     </div>
   );

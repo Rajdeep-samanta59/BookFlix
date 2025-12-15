@@ -157,6 +157,27 @@ const Maintenance = () => {
     }
   };
 
+  // Update User State
+  const [showUpdateUserForm, setShowUpdateUserForm] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [foundUser, setFoundUser] = useState(null);
+  const [updateUserForm, setUpdateUserForm] = useState({ name: '', role: 'user', status: 'ACTIVE', email: '', password: '' });
+
+  const handleUserUpdate = async (e) => {
+    e.preventDefault();
+    try {
+       const config = { headers: { Authorization: `Bearer ${user.token}` } };
+       await axios.put(`http://localhost:5000/api/auth/${foundUser._id}`, updateUserForm, config);
+       toast.success('User updated successfully');
+       setShowUpdateUserForm(false);
+       setFoundUser(null);
+       setUserSearchTerm('');
+       fetchData();
+    } catch (error) {
+       toast.error(error.response?.data?.message || 'Error updating user');
+    }
+  };
+
   return (
     <div className="container mx-auto">
       <h2 className="text-2xl font-bold mb-4">Maintenance</h2>
@@ -438,31 +459,84 @@ const Maintenance = () => {
       {activeTab === 'users' && (
         <div>
           <button className="bg-green-500 text-white px-4 py-2 rounded mb-4" onClick={() => setShowUserForm(true)}>Add User</button>
+          <button className="bg-yellow-500 text-white px-4 py-2 rounded mb-4 ml-4" onClick={() => setShowUpdateUserForm(true)}>Update User</button>
           {showUserForm && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
               <div className="bg-white p-6 rounded w-96">
                 <h3 className="text-xl font-bold mb-4">Add User</h3>
                 <form onSubmit={handleUserSubmit}>
+                  {/* ... Existing Add User Form ... */}
                   <select className="w-full mb-2 p-2 border" value={userFormData.userMode} onChange={e => setUserFormData({...userFormData, userMode: e.target.value})}>
                     <option value="NEW">New User</option>
-                    <option value="EXISTING">Existing User</option>
                   </select>
-                  <input className="w-full mb-2 p-2 border" placeholder="User ID (e.g. john123)" value={userFormData.userId} onChange={e => setUserFormData({...userFormData, userId: e.target.value})} required />
+                  <input className="w-full mb-2 p-2 border" placeholder="User ID/Email (e.g. john@example.com)" value={userFormData.userId} onChange={e => setUserFormData({...userFormData, userId: e.target.value})} required />
                   <input className="w-full mb-2 p-2 border" placeholder="Name" value={userFormData.name} onChange={e => setUserFormData({...userFormData, name: e.target.value})} required />
                   <input type="password" className="w-full mb-2 p-2 border" placeholder="Password" value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} required />
                   <select className="w-full mb-2 p-2 border" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value})}>
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
                   </select>
-                  <select className="w-full mb-4 p-2 border" value={userFormData.status} onChange={e => setUserFormData({...userFormData, status: e.target.value})}>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
                   <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded mr-2">Save</button>
                   <button type="button" className="bg-gray-300 px-4 py-2 rounded" onClick={() => setShowUserForm(false)}>Cancel</button>
                 </form>
               </div>
             </div>
+          )}
+
+          {showUpdateUserForm && (
+             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+               <div className="bg-white p-6 rounded w-96 max-h-[90vh] overflow-y-auto">
+                 <h3 className="text-xl font-bold mb-4">Update User</h3>
+                 {!foundUser ? (
+                    <div className="mb-4">
+                      <label className="block mb-2">Search by Name or Email</label>
+                      <div className="flex">
+                        <input className="w-full p-2 border rounded-l" placeholder="Enter Name or Email" value={userSearchTerm} onChange={e => setUserSearchTerm(e.target.value)} />
+                        <button className="bg-blue-500 text-white px-4 rounded-r" onClick={() => {
+                           const u = users.find(user => (user.name && user.name.toLowerCase().includes(userSearchTerm.toLowerCase())) || (user.email && user.email.toLowerCase().includes(userSearchTerm.toLowerCase())) );
+                           if (u) {
+                              setFoundUser(u);
+                              setUpdateUserForm({ name: u.name, role: u.role, status: u.status || 'ACTIVE', email: u.email, password: '' });
+                           } else {
+                              toast.error('User not found');
+                           }
+                        }}>Search</button>
+                      </div>
+                      <div className="flex justify-end mt-4">
+                        <button type="button" className="bg-gray-300 px-4 py-2 rounded" onClick={() => setShowUpdateUserForm(false)}>Close</button>
+                      </div>
+                    </div>
+                 ) : (
+                    <form onSubmit={handleUserUpdate}>
+                      <label className="block text-sm font-bold mb-1">Name</label>
+                      <input className="w-full mb-2 p-2 border" value={updateUserForm.name} onChange={e => setUpdateUserForm({...updateUserForm, name: e.target.value})} />
+                      
+                      <label className="block text-sm font-bold mb-1">Email</label>
+                      <input className="w-full mb-2 p-2 border bg-gray-100" value={updateUserForm.email} readOnly />
+
+                      <label className="block text-sm font-bold mb-1">Password (Leave blank to keep same)</label>
+                      <input className="w-full mb-2 p-2 border" type="password" placeholder="New Password" value={updateUserForm.password} onChange={e => setUpdateUserForm({...updateUserForm, password: e.target.value})} />
+
+                      <label className="block text-sm font-bold mb-1">Role</label>
+                      <select className="w-full mb-2 p-2 border" value={updateUserForm.role} onChange={e => setUpdateUserForm({...updateUserForm, role: e.target.value})}>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
+
+                      <label className="block text-sm font-bold mb-1">Status</label>
+                      <select className="w-full mb-4 p-2 border" value={updateUserForm.status} onChange={e => setUpdateUserForm({...updateUserForm, status: e.target.value})}>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                      </select>
+
+                      <div className="flex justify-end">
+                         <button type="button" className="bg-gray-300 px-4 py-2 rounded mr-2" onClick={() => { setFoundUser(null); setUserSearchTerm(''); }}>Back</button>
+                         <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+                      </div>
+                    </form>
+                 )}
+               </div>
+             </div>
           )}
           <table className="min-w-full bg-white border">
             <thead>

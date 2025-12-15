@@ -8,7 +8,7 @@ const Navbar = () => {
     <header className="flex justify-between items-center py-4 px-8 bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-100">
       <div className="flex-1"></div>
 
-      {/* Right: Actions */}
+    
       <div className="flex items-center space-x-6">
         {/* <div className="h-6 w-px bg-slate-200"></div> */}
 

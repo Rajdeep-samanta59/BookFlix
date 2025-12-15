@@ -34,6 +34,9 @@ export const returnBook = async (req, res) => {
 
     transaction.actualReturnDate = actualReturnDate;
     transaction.status = 'returned';
+    if (req.body.remarks) {
+      transaction.remarks = req.body.remarks;
+    }
 
     const returnDate = new Date(transaction.returnDate);
     const actualDate = new Date(actualReturnDate);
@@ -42,6 +45,9 @@ export const returnBook = async (req, res) => {
 
     if (actualDate > returnDate) {
       transaction.fine = diffDays * 10;
+      if (req.body.finePaid) {
+        transaction.finePaid = true;
+      }
     }
 
     await transaction.save();
@@ -73,7 +79,13 @@ export const payFine = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find()
+    let query = {};
+    // If not admin, only show own transactions
+    if (req.user && req.user.role !== 'admin') {
+      query = { memberId: req.user._id };
+    }
+
+    const transactions = await Transaction.find(query)
       .populate('bookId', 'title authorOrDirector serialNumber')
       .populate('memberId', 'name email');
     res.json(transactions);

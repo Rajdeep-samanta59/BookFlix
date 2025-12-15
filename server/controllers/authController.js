@@ -64,3 +64,32 @@ export const getUsers = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const updateUser = async (req, res) => {
+  const { name, email, role, status, password } = req.body;
+  try {
+    const user = await User.findById(req.params.id);
+    if (user) {
+      user.name = name || user.name;
+      user.email = email || user.email;
+      user.role = role || user.role;
+      user.status = status || user.status;
+      if (password) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(password, salt);
+      }
+      const updatedUser = await user.save();
+      res.json({
+        _id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        status: updatedUser.status,
+      });
+    } else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -18,7 +18,6 @@ const Sidebar = () => {
           });
           setMembershipData(data);
         } catch (error) {
-           // If 404 or error, assume no active membership
            setMembershipData(null);
         }
       }
